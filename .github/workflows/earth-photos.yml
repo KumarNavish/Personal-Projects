@@ -1,0 +1,23 @@
+name: Verify historical aerial source
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['earth_photos/**', '.github/workflows/earth-photos.yml']
+permissions: {contents: read}
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: |
+          python3 -m venv /tmp/photo-env
+          /tmp/photo-env/bin/pip -q install requests pillow
+          /tmp/photo-env/bin/python earth_photos/probe.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: historical-photo-verification
+          path: photo_probe_output/
+          retention-days: 2
