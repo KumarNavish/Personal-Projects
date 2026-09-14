@@ -19,16 +19,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Prepare published controller and simulator
+      - name: Prepare version-compatible published controller
         run: |
           python3 -m venv /tmp/grid-env
-          /tmp/grid-env/bin/pip -q install torch --index-url https://download.pytorch.org/whl/cpu
-          /tmp/grid-env/bin/pip -q install grid2op lightsim2grid cvxpy stable-baselines3 l2rpn-baselines
+          /tmp/grid-env/bin/pip -q install 'torch==2.4.1' --index-url https://download.pytorch.org/whl/cpu
+          /tmp/grid-env/bin/pip -q install 'grid2op>=1.9,<1.10' 'lightsim2grid==0.8.2' 'numpy<2' 'scipy<1.14' 'pandas<3' 'pandapower<3' 'cvxpy<1.6' 'stable-baselines3==2.3.2'
           git clone https://github.com/lajavaness/l2rpn-2023-ljn-agent.git /tmp/ljn-public
           git -C /tmp/ljn-public checkout ca0637eab9f098be7f206ed0e46a3900cd4deec0
           /tmp/grid-env/bin/pip freeze > grid-packages.txt
       - name: Execute unchanged benchmark comparisons
-        run: /tmp/grid-env/bin/python grid_support.py
+        run: /tmp/grid-env/bin/python grid_probe/run.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
