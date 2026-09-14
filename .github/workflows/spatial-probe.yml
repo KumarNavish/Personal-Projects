@@ -1,0 +1,38 @@
+name: Released spatial model probe
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['spatial_probe/**', '.github/workflows/spatial-probe.yml']
+permissions:
+  contents: read
+jobs:
+  inference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      HF_HUB_DISABLE_XET: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare released CPU model
+        run: |
+          python3 -m venv /tmp/spatial-env
+          /tmp/spatial-env/bin/pip -q install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          git clone --depth=1 https://github.com/facebookresearch/map-anything.git /tmp/map-anything
+          git -C /tmp/map-anything rev-parse HEAD
+          /tmp/spatial-env/bin/pip -q install -e /tmp/map-anything
+          /tmp/spatial-env/bin/pip freeze
+      - name: Infer estimated geometry from real public photos
+        run: /tmp/spatial-env/bin/python spatial_probe/run.py
+      - name: Preserve actual results for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spatial-result
+          path: spatial_output/
+          retention-days: 1
+          if-no-files-found: warn
