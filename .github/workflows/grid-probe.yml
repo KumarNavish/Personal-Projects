@@ -1,0 +1,39 @@
+name: Released large-grid controller
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['grid_probe/**', '.github/workflows/grid-probe.yml']
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      NUMBA_NUM_THREADS: '2'
+      MPLBACKEND: Agg
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Prepare published controller and simulator
+        run: |
+          python3 -m venv /tmp/grid-env
+          /tmp/grid-env/bin/pip -q install torch --index-url https://download.pytorch.org/whl/cpu
+          /tmp/grid-env/bin/pip -q install grid2op lightsim2grid cvxpy stable-baselines3 l2rpn-baselines
+          git clone --depth=1 https://github.com/lajavaness/l2rpn-2023-ljn-agent.git /tmp/ljn-public
+          /tmp/grid-env/bin/pip freeze > grid-packages.txt
+      - name: Execute unchanged benchmark comparisons
+        run: /tmp/grid-env/bin/python grid_probe/run.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: actual-grid-comparison
+          path: |
+            grid_output/
+            grid-packages.txt
+          retention-days: 2
+          compression-level: 6
