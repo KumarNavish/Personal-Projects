@@ -1,0 +1,18 @@
+name: Public world endpoint probe
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['world_probe/**', '.github/workflows/world-probe.yml']
+permissions:
+  contents: read
+jobs:
+  access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: |
+          python3 -m venv /tmp/world-env
+          /tmp/world-env/bin/pip -q install gradio_client requests
+          /tmp/world-env/bin/python world_probe/access.py
