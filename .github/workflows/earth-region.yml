@@ -1,0 +1,31 @@
+name: Public landscape capability
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['earth_region/**', '.github/workflows/earth-region.yml']
+permissions:
+  contents: read
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public regional raster and independent aerial mosaic
+        run: |
+          python3 -m venv /tmp/earth-region-env
+          /tmp/earth-region-env/bin/pip -q install requests numpy rasterio pillow
+          /tmp/earth-region-env/bin/python earth_region/acquire.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-landscape
+          path: earth_region_output/
+          retention-days: 2
+          compression-level: 6
+          if-no-files-found: warn
