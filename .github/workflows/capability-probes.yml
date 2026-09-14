@@ -1,0 +1,36 @@
+name: Public capability probes
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths:
+      - 'capability_probes/**'
+      - '.github/workflows/capability-probes.yml'
+permissions:
+  contents: read
+jobs:
+  probe:
+    name: ${{ matrix.probe }} probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        probe: [spatial, wind]
+    env:
+      PROBE: ${{ matrix.probe }}
+      OPENBLAS_NUM_THREADS: '2'
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      MPLBACKEND: Agg
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Create isolated Python environment
+        run: |
+          python3 -m venv /tmp/capability-env
+          /tmp/capability-env/bin/pip -q install 'py-wake>=2.6,<3' 'gradio_client>=1.3,<3' requests pillow
+          /tmp/capability-env/bin/pip freeze
+      - name: Execute bounded public-input probe
+        run: /tmp/capability-env/bin/python capability_probes/probe.py
