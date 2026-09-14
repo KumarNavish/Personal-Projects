@@ -1,0 +1,46 @@
+name: Portable full-grid runtime
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['grid_runtime/**', '.github/workflows/grid-runtime.yml']
+permissions: {contents: read}
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      OPENBLAS_NUM_THREADS: '2'
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Original actor and export validation
+        run: |
+          python3 -m venv /tmp/export-env
+          /tmp/export-env/bin/pip -q install 'torch==2.4.1' --index-url https://download.pytorch.org/whl/cpu
+          /tmp/export-env/bin/pip -q install 'grid2op==1.9.8' 'lightsim2grid==0.8.2' 'numpy==1.26.4' 'scipy==1.13.1' 'pandas==2.3.3' 'pandapower==2.14.11' 'cvxpy==1.5.4' 'stable-baselines3==2.3.2' uv
+          git clone https://github.com/lajavaness/l2rpn-2023-ljn-agent.git /tmp/ljn-public
+          git -C /tmp/ljn-public checkout ca0637eab9f098be7f206ed0e46a3900cd4deec0
+          /tmp/export-env/bin/python grid_runtime/export_actor.py
+      - name: Relocatable CPU execution without training framework
+        run: |
+          export UV_PYTHON_INSTALL_DIR="$PWD/grid_runtime_output/runtime"
+          /tmp/export-env/bin/uv python install 3.12.11
+          PY=$(find "$UV_PYTHON_INSTALL_DIR" -path '*/bin/python3.12' | head -1)
+          test -n "$PY"
+          /tmp/export-env/bin/uv pip install --python "$PY" 'grid2op==1.9.8' 'lightsim2grid==0.8.2' 'numpy==1.26.4' 'scipy==1.13.1' 'pandas==2.3.3' 'pandapower==2.14.11' 'cvxpy==1.5.4' 'gymnasium==0.29.1' 'osqp==1.1.3' 'scs==3.3.1' 'clarabel==0.11.1' 'ecos==2.0.14'
+          "$PY" -c 'import grid2op,lightsim2grid,cvxpy; print(grid2op.__version__,lightsim2grid.__version__,cvxpy.__version__)'
+          /tmp/export-env/bin/python grid_runtime/package_runtime.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portable-grid-runtime
+          path: |
+            grid-runtime-linux.tar.gz
+            grid_runtime_output/export-verification.json
+            grid_runtime_output/runtime-receipt.json
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: warn
