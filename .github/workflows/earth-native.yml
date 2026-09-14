@@ -1,0 +1,29 @@
+name: Native landscape representation
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['earth_native/**', '.github/workflows/earth-native.yml']
+permissions:
+  contents: read
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: |
+          python3 -m venv /tmp/native-env
+          /tmp/native-env/bin/pip -q install numpy rasterio
+          /tmp/native-env/bin/python earth_native/acquire.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-landscape
+          path: earth_native_output/
+          retention-days: 1
+          compression-level: 6
