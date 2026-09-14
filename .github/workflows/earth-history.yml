@@ -1,0 +1,28 @@
+name: Historical landscape representation
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['earth_history/**', '.github/workflows/earth-history.yml']
+permissions:
+  contents: read
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      OPENBLAS_NUM_THREADS: '2'
+      OMP_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: |
+          python3 -m venv /tmp/earth-history-env
+          /tmp/earth-history-env/bin/pip -q install requests pandas pyarrow rasterio numpy
+          /tmp/earth-history-env/bin/python earth_history/acquire.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: actual-historical-landscape
+          path: earth_history_output/
+          retention-days: 2
+          compression-level: 6
