@@ -1,0 +1,24 @@
+name: Independent landscape inspection
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['earth_detail/**', '.github/workflows/earth-detail.yml']
+permissions:
+  contents: read
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: |
+          python3 -m venv /tmp/detail-env
+          /tmp/detail-env/bin/pip -q install requests pillow
+          /tmp/detail-env/bin/python earth_detail/acquire.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: independent-aerial-details
+          path: earth_detail_output/
+          retention-days: 1
