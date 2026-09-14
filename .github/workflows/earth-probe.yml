@@ -1,0 +1,26 @@
+name: Public Earth representation probe
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['earth_probe/**', '.github/workflows/earth-probe.yml']
+permissions:
+  contents: read
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: |
+          python3 -m venv /tmp/earth-env
+          /tmp/earth-env/bin/pip -q install requests pandas pyarrow
+          /tmp/earth-env/bin/python earth_probe/inspect_public_index.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: earth-index
+          path: earth_output/index-result.json
+          retention-days: 1
+          if-no-files-found: warn
