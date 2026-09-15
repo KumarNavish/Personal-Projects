@@ -1,0 +1,59 @@
+name: Live grid service smoke test
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['grid_live/**', '.github/workflows/grid-live-smoke.yml']
+permissions: {contents: read}
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      OPENBLAS_NUM_THREADS: '2'
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      NUMBA_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Install released controller stack
+        run: |
+          python3 -m venv /tmp/live-env
+          /tmp/live-env/bin/pip -q install 'torch==2.4.1' --index-url https://download.pytorch.org/whl/cpu
+          /tmp/live-env/bin/pip -q install 'grid2op>=1.9,<1.10' 'lightsim2grid==0.8.2' 'numpy<2' 'scipy<1.14' 'pandas<3' 'pandapower<3' 'cvxpy<1.6' 'stable-baselines3==2.3.2'
+          git clone https://github.com/lajavaness/l2rpn-2023-ljn-agent.git /tmp/ljn-public
+          git -C /tmp/ljn-public checkout ca0637eab9f098be7f206ed0e46a3900cd4deec0
+      - name: Start service and execute both complete streamed runs
+        run: |
+          /tmp/live-env/bin/python grid_live/server.py > live-server.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8787/api/health && break; sleep 1; done
+          curl -fsS --max-time 180 http://127.0.0.1:8787/api/run?episode=0 > live-episode0.ndjson
+          curl -fsS --max-time 180 http://127.0.0.1:8787/api/run?episode=1 > live-episode1.ndjson
+          python3 - <<'PY'
+          import json, pathlib
+          expected={0:(219,575,63),1:(473,410,45)}
+          out={}
+          for ep in (0,1):
+              rows=[json.loads(x) for x in open(f'live-episode{ep}.ndjson')]
+              assert rows[0]['type']=='start' and rows[-1]['type']=='end'
+              w=rows[-1]['wait']['step'];a=rows[-1]['act']['step'];actions=rows[-1]['actionCount']
+              assert (w,a,actions)==expected[ep],(ep,w,a,actions)
+              assert len([x for x in rows if x['type']=='step'])>=max(w,a)-1
+              out[ep]={'wait_step':w,'act_step':a,'actions':actions,'events':len(rows),'elapsed':rows[-1]['elapsedSeconds']}
+          pathlib.Path('live-smoke-result.json').write_text(json.dumps({'status':'PASS','episodes':out},indent=2))
+          print(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-grid-smoke
+          path: |
+            live-episode0.ndjson
+            live-episode1.ndjson
+            live-smoke-result.json
+            live-server.log
+          retention-days: 2
+          compression-level: 6
