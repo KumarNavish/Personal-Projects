@@ -16,6 +16,10 @@ from ljn_public.make_agent import make_agent_topoNN
 from ljn_public.modules.rewards import MaxRhoReward
 torch.set_num_threads(int(os.environ.get('TORCH_THREADS','2')))
 COMMIT=subprocess.check_output(['git','-C',str(src),'rev-parse','HEAD'],text=True).strip();POLICY_SHA=hashlib.sha256((src/'models/RL_training_PPO.zip').read_bytes()).hexdigest();LOCK=threading.Lock()
+def plain(o):
+ if isinstance(o,np.ndarray):return o.tolist()
+ if isinstance(o,np.generic):return o.item()
+ raise TypeError(f'Unsupported JSON value: {type(o).__name__}')
 def make_env(ep):
  e=grid2op.make('l2rpn_idf_2023',test=True,backend=LightSimBackend(),reward_class=MaxRhoReward);e.seed(20260914);e.set_id(ep);o=e.reset();return e,o
 def view(obs):return {'step':int(obs.current_step),'time':str(obs.get_time_stamp()),'maxRho':float(np.nanmax(obs.rho)),'rho':[round(float(x),4) for x in obs.rho],'lineStatus':[bool(x) for x in obs.line_status]}
@@ -31,7 +35,7 @@ def event(ep):
    if not da:
     act=aa.act(oa,ra,da);ad=act.as_dict();actions+=int(bool(ad));oa,ra,da,ia=ea.step(act)
    else:ia={}
-   yield {'type':'step','episode':ep,'step':max(int(ow.current_step) if not dw else 0,int(oa.current_step) if not da else 0),'wait':{'before':w_before,'done':dw,'exceptions':[str(x) for x in iw.get('exception',[])]},'act':{'before':a_before,'action':ad,'done':da,'exceptions':[str(x) for x in ia.get('exception',[])]},'elapsedSeconds':time.monotonic()-start,'actionCount':actions}
+   yield {'type':'step','episode':ep,'step':max(int(ow.current_step),int(oa.current_step)),'wait':{'before':w_before,'after':view(ow),'done':dw,'exceptions':[str(x) for x in iw.get('exception',[])]},'act':{'before':a_before,'after':view(oa),'action':ad,'done':da,'exceptions':[str(x) for x in ia.get('exception',[])]},'elapsedSeconds':time.monotonic()-start,'actionCount':actions}
    if dw and da:break
   yield {'type':'end','episode':ep,'wait':view(ow),'act':view(oa),'waitDone':dw,'actDone':da,'actionCount':actions,'elapsedSeconds':time.monotonic()-start}
  finally:ew.close();ea.close()
@@ -48,7 +52,7 @@ class H(BaseHTTPRequestHandler):
   if not LOCK.acquire(blocking=False):self._headers(409);self.wfile.write(b'{"error":"run already active"}');return
   try:
    self._headers(200,'application/x-ndjson')
-   for row in event(ep):self.wfile.write((json.dumps(row,separators=(',',':'))+'\n').encode());self.wfile.flush()
+   for row in event(ep):self.wfile.write((json.dumps(row,separators=(',',':'),default=plain)+'\n').encode());self.wfile.flush()
   except (BrokenPipeError,ConnectionResetError):pass
   finally:LOCK.release()
 if __name__=='__main__':ThreadingHTTPServer(('0.0.0.0',int(os.environ.get('PORT','8787'))),H).serve_forever()
