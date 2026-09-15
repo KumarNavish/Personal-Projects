@@ -1,0 +1,35 @@
+name: Third preselected grid chronic
+on:
+  push:
+    branches: [capability-probes-20260914]
+    paths: ['grid_episode2/**', '.github/workflows/grid-episode2.yml']
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      NUMBA_NUM_THREADS: '2'
+      MPLBACKEND: Agg
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - run: |
+          python3 -m venv /tmp/grid-env
+          /tmp/grid-env/bin/pip -q install 'torch==2.4.1' --index-url https://download.pytorch.org/whl/cpu
+          /tmp/grid-env/bin/pip -q install 'grid2op>=1.9,<1.10' 'lightsim2grid==0.8.2' 'numpy<2' 'scipy<1.14' 'pandas<3' 'pandapower<3' 'cvxpy<1.6' 'stable-baselines3==2.3.2'
+          git clone https://github.com/lajavaness/l2rpn-2023-ljn-agent.git /tmp/ljn-public
+          git -C /tmp/ljn-public checkout ca0637eab9f098be7f206ed0e46a3900cd4deec0
+          /tmp/grid-env/bin/python grid_episode2/run.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: third-grid-chronic
+          path: grid_episode2_output/
+          retention-days: 2
+          compression-level: 6
